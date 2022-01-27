@@ -1,0 +1,12 @@
+ZPM
+000	& & & &
+001	Greška kod čitanja datoteke
+002	Greška kod dohvata brojača &
+003	Greška kod održavanja tablice ZTPM_GIS_MAP
+004	Ažuriranje vanjskog statusa: &
+005	Ažuriranje internog statusa: &
+006	Obrada ažuriranja završila
+007	Greška kod čitanja sadržaja direktorija
+008	Greška kod kopiranja datoteke
+009	Obrada datoteke &
+010	Greška kod čitanja putanje za varijablu &
