@@ -1,0 +1,16 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPM_GIS_FUNCLOC_IMPORT_I01
+*&---------------------------------------------------------------------*
+
+MODULE user_command_9000 INPUT.
+
+  CASE sy-ucomm.
+    WHEN 'BACK'.
+      LEAVE TO SCREEN 0.
+    WHEN 'EXIT'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CANCEL'.
+      LEAVE PROGRAM.
+  ENDCASE.
+
+ENDMODULE.

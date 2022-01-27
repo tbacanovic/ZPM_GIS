@@ -1,0 +1,23 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPM_GIS_FUNCLOC_IMPORT_O01
+*&---------------------------------------------------------------------*
+
+MODULE status_9000 OUTPUT.
+
+*  SET PF-STATUS 'STATUS_9000' IMMEDIATELY.
+*  SET TITLEBAR 'TITLE_9000'.
+*
+*  go_alv_grid->mo_grid = NEW cl_gui_alv_grid( i_parent  = cl_gui_custom_container=>default_screen ).
+*
+*  SET HANDLER go_alv_grid->handle_hotspot_click FOR go_alv_grid->mo_grid.
+*
+*  CALL METHOD go_alv_grid->mo_grid->set_table_for_first_display
+*    EXPORTING
+*      is_layout       = go_alv_grid->ms_layout
+*      is_variant      = go_alv_grid->ms_variant
+*      i_save          = 'A'
+*    CHANGING
+*      it_fieldcatalog = go_alv_grid->mt_field_catalog
+*      it_outtab       = go_funcloc->mt_alv_output.
+
+ENDMODULE.

@@ -1,0 +1,65 @@
+*&---------------------------------------------------------------------*
+*& Report ZPM_GIS_FUNCLOC_IMPORT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+************************************************************************
+*  Developer       : Tomislav Bačanović
+*  Company         : King ICT
+*  Date            : 24.01.2022
+*  Input           :
+*  Output          :
+*  Purpose         :
+*  Specification   : HEPPLIN_DI_PM_00039 - SAP-GIS integracija - import
+*                    podataka funkcijskih lokacija
+************************************************************************
+*  Changes
+*---------------------------------------------------------------------*
+* User-ID      Abbreviation       Description
+*---------------------------------------------------------------------*
+*
+************************************************************************
+
+REPORT zpm_gis_funcloc_import.
+
+INCLUDE zpm_gis_funcloc_import_c01.
+INCLUDE zpm_gis_funcloc_import_i01.
+INCLUDE zpm_gis_funcloc_import_o01.
+
+DATA: gv_okcode TYPE syucomm.
+DATA: go_app TYPE REF TO lcl_application.
+
+**********************************************************************
+* selection screen
+**********************************************************************
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+PARAMETERS: p_loc TYPE c1 RADIOBUTTON GROUP r1 DEFAULT 'X' USER-COMMAND abc,
+            p_apl TYPE c1 RADIOBUTTON GROUP r1.
+PARAMETERS: p_file TYPE rlgrap-filename.
+SELECTION-SCREEN SKIP 1.
+PARAMETERS: p_email TYPE flag AS CHECKBOX.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+**********************************************************************
+* events
+**********************************************************************
+INITIALIZATION.
+  go_app = lcl_application=>get_apps_instance( ).
+
+AT SELECTION-SCREEN.
+  go_app->set_sel_screen_params( VALUE #( p_loc = p_loc
+                                          p_apl = p_apl
+                                          p_file = p_file
+                                          p_email = p_email )
+                               ).
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+
+  p_file = go_app->show_file_f4( ).
+
+START-OF-SELECTION.
+
+  go_app->run_program( ).

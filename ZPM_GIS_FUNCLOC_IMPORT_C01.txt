@@ -1,0 +1,4393 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPM_FUNCLOC_CREATE_EXCEL_C01
+*&---------------------------------------------------------------------*
+
+INTERFACE lif_rep_types.
+  TYPES: BEGIN OF ty_selscreen,
+           p_loc   TYPE flag,
+           p_apl   TYPE flag,
+           p_file  TYPE rlgrap-filename,
+           p_email TYPE flag,
+         END OF ty_selscreen.
+ENDINTERFACE.
+
+**********************************************************************
+CLASS lcl_file_api DEFINITION ABSTRACT.
+  PUBLIC SECTION.
+    CONSTANTS: BEGIN OF c_loc_type,
+                 server TYPE char01 VALUE '1',
+                 pc     TYPE char01 VALUE '2',
+               END OF c_loc_type.
+
+    TYPES: ty_epsfili_t TYPE STANDARD TABLE OF epsfili.
+
+    CLASS-METHODS: factory IMPORTING iv_loc_type   TYPE char01
+                                     iv_path       TYPE rlgrap-filename
+                           RETURNING VALUE(ro_obj) TYPE REF TO lcl_file_api,
+      get_path_via_path_var IMPORTING iv_path_var    TYPE wsaf_dir_saf
+                            RETURNING VALUE(rv_path) TYPE wsaf_dir_saf
+                            RAISING   cx_t100_msg.
+
+    METHODS: read_file ABSTRACT EXPORTING et_file_data TYPE string_table
+                                          ev_filename  TYPE string
+                                RAISING   cx_t100_msg,
+      move_file ABSTRACT IMPORTING iv_sourcepath TYPE rlgrap-filename
+                                   iv_targetpath TYPE rlgrap-filename
+                         RAISING   cx_t100_msg,
+      get_filename_from_path IMPORTING iv_path            TYPE string
+                             RETURNING VALUE(rv_filename) TYPE string,
+      get_filename_wo_ext IMPORTING iv_filename        TYPE string
+                          RETURNING VALUE(rv_filename) TYPE string,
+      get_directory_listing ABSTRACT EXPORTING et_listing TYPE ty_epsfili_t
+                                     RAISING   cx_t100_msg,
+      get_path RETURNING VALUE(rv_path) TYPE rlgrap-filename.
+
+  PROTECTED SECTION.
+    DATA: m_path TYPE rlgrap-filename.
+
+ENDCLASS.
+
+CLASS lcl_file_api_server DEFINITION INHERITING FROM lcl_file_api.
+  PUBLIC SECTION.
+
+    METHODS: read_file REDEFINITION,
+      move_file REDEFINITION,
+      get_directory_listing REDEFINITION.
+ENDCLASS.
+
+CLASS lcl_file_api_pc DEFINITION INHERITING FROM lcl_file_api.
+  PUBLIC SECTION.
+    METHODS: read_file REDEFINITION,
+      move_file REDEFINITION,
+      get_directory_listing REDEFINITION.
+ENDCLASS.
+**********************************************************************
+CLASS lcl_gis_file DEFINITION ABSTRACT.
+  PUBLIC SECTION.
+    CONSTANTS: BEGIN OF c_gis_vrsta_filename,
+                 sustav_id    TYPE string VALUE 'system.csv',
+                 reg_stanica  TYPE string VALUE 'gd_regulating_station.csv',
+                 plinovod     TYPE string VALUE 'gd_main.csv',
+                 pr_plinovod  TYPE string VALUE 'gd_service.csv',
+                 ventil       TYPE string VALUE 'gd_valve.csv',
+                 red_spojnica TYPE string VALUE 'gd_reducer.csv',
+                 kond_posuda  TYPE string VALUE 'gd_drip.csv',
+                 lula         TYPE string VALUE 'gd_vent.csv',
+                 zast_cijev   TYPE string VALUE 'gd_casing.csv',
+               END OF c_gis_vrsta_filename,
+               BEGIN OF c_gis_vrsta,
+                 sustav_id    TYPE string VALUE 'SUSTAV_ID',
+                 reg_stanica  TYPE string VALUE 'REG_STANICA',
+                 plinovod     TYPE string VALUE 'PLINOVOD',
+                 pr_plinovod  TYPE string VALUE 'PR_PLINOVOD',
+                 ventil       TYPE string VALUE 'VENTIL',
+                 red_spojnica TYPE string VALUE 'RED_SPOJNICA',
+                 kond_posuda  TYPE string VALUE 'KOND_POSUDA',
+                 lula         TYPE string VALUE 'LULA',
+                 zast_cijev   TYPE string VALUE 'ZAST_CIJEV',
+               END OF c_gis_vrsta,
+               c_field_separator TYPE c LENGTH 1 VALUE ';',
+               BEGIN OF c_maint_type,
+                 insert TYPE char01 VALUE 'I',
+                 update TYPE char01 VALUE 'U',
+                 delete TYPE char01 VALUE 'D',
+                 skip   TYPE char01 VALUE '-',
+               END OF c_maint_type,
+               BEGIN OF c_map_gis_vrsta,
+                 org    TYPE zpm_gis_vrsta VALUE 'ORG',
+                 sustav TYPE zpm_gis_vrsta VALUE 'SUSTAV',
+               END OF c_map_gis_vrsta,
+               BEGIN OF c_map_sap_objekt,
+                 costcenter TYPE zpm_sap_objekt VALUE 'COSTCENTER',
+                 plsectn    TYPE zpm_sap_objekt VALUE 'PLSECTN',
+                 work_ctr   TYPE zpm_sap_objekt VALUE 'WORK_CTR',
+                 plangroup  TYPE zpm_sap_objekt VALUE 'PLANGROUP',
+                 sales_off  TYPE zpm_sap_objekt VALUE 'SALES_OFF',
+                 authgrp    TYPE zpm_sap_objekt VALUE 'AUTHGRP',
+                 network_id TYPE zpm_sap_objekt VALUE 'NETWORK_ID',
+               END OF c_map_sap_objekt,
+               BEGIN OF c_funcloc,
+                 comp_code_0035 TYPE bukrs VALUE '0035',
+                 sales_org_1000 TYPE vkorg VALUE '1000',
+                 distr_chan_10  TYPE vtweg VALUE '10',
+                 division_10    TYPE spart VALUE '10',
+                 strind_zpm03   TYPE tplkz VALUE 'ZPM03',
+                 category_m     TYPE fltyp VALUE 'M',
+               END OF c_funcloc,
+               BEGIN OF c_classif,
+                 objecttable_iflot TYPE bapi1003_key-objecttable VALUE 'IFLOT',
+                 classtype_003     TYPE bapi1003_key-classtype VALUE '003',
+                 status_1          TYPE bapi1003_key-status VALUE '1',
+               END OF c_classif,
+               BEGIN OF c_classnum,
+                 sustav       TYPE bapi1003_key-classnum VALUE 'SUSTAV',
+                 reg_stanica  TYPE bapi1003_key-classnum VALUE 'REG_STANICA',
+                 plinovod     TYPE bapi1003_key-classnum VALUE 'PLINOVOD',
+                 pr_plinovod  TYPE bapi1003_key-classnum VALUE 'PR_PLINOVOD',
+                 ventil       TYPE bapi1003_key-classnum VALUE 'VENTIL',
+                 red_spojnica TYPE bapi1003_key-classnum VALUE 'RED_SPOJNICA',
+                 lula         TYPE bapi1003_key-classnum VALUE 'LULA',
+                 kond_posuda  TYPE bapi1003_key-classnum VALUE 'KOND_POSUDA',
+                 zast_cijev   TYPE bapi1003_key-classnum VALUE 'ZAST_CIJEV',
+               END OF c_classnum,
+               BEGIN OF c_charact,
+                 to_tlak           TYPE atnam VALUE 'TO_TLAK',
+                 to_sustav_tip     TYPE atnam VALUE 'TO_SUSTAV_TIP',
+                 to_tlak_ulazni    TYPE atnam VALUE 'TO_TLAK_ULAZNI',
+                 to_tlak_izlazni   TYPE atnam VALUE 'TO_TLAK_IZLAZNI',
+                 to_smjestaj       TYPE atnam VALUE 'TO_SMJESTAJ',
+                 to_model          TYPE atnam VALUE 'TO_MODEL',
+                 to_material       TYPE atnam VALUE 'TO_MATERIAL',
+                 to_vent_krit      TYPE atnam VALUE 'TO_VENT_KRIT',
+                 to_norm_status    TYPE atnam VALUE 'TO_NORM_STATUS',
+                 to_vent_vrsta     TYPE atnam VALUE 'TO_VENT_VRSTA',
+                 to_namjena        TYPE atnam VALUE 'TO_NAMJENA',
+                 to_red_sp_vrsta   TYPE atnam VALUE 'TO_RED_SP_VRSTA',
+                 to_ukopano        TYPE atnam VALUE 'TO_UKOPANO',
+                 to_id_zast_cijevi TYPE atnam VALUE 'TO_ID_ZAST_CIJEVI',
+               END OF c_charact,
+               BEGIN OF c_status_obrade,
+                 ok  TYPE fmclearstate VALUE 'OK',
+                 nok TYPE fmclearstate VALUE 'NOK',
+               END OF c_status_obrade.
+
+    CLASS-METHODS: class_constructor,
+      factory IMPORTING iv_filename   TYPE string
+              RETURNING VALUE(ro_obj) TYPE REF TO lcl_gis_file.
+
+    METHODS: constructor IMPORTING iv_gis_vrsta TYPE string,
+      process_data ABSTRACT IMPORTING it_file_data         TYPE string_table
+                            CHANGING  ct_funcloc_main_stat TYPE zpm_gis_funcloc_fcat_t
+                            RAISING   cx_t100_msg,
+      get_sap_objekt_id IMPORTING iv_gis_id        TYPE zpm_gis_id
+                                  iv_gis_vrsta     TYPE zpm_gis_vrsta OPTIONAL
+                                  iv_sap_objekt    TYPE zpm_sap_objekt OPTIONAL
+                        RETURNING VALUE(rv_sap_id) TYPE zpm_sap_objekt,
+      determine_maint_type IMPORTING iv_gis_id            TYPE zpm_gis_id
+                                     iv_action            TYPE char01
+                                     it_gis_file_data     TYPE STANDARD TABLE
+                           RETURNING VALUE(rv_maint_type) TYPE char01.
+
+  PROTECTED SECTION.
+    DATA: m_gis_vrsta TYPE zpm_gis_vrsta.
+    CLASS-DATA: mt_gis_map TYPE TABLE OF ztpm_gis_map.
+
+    METHODS: fill_gis_file_data ABSTRACT IMPORTING it_file_data TYPE string_table,
+      map_org_data IMPORTING iv_id_org      TYPE char20
+                   CHANGING  cs_funcloc_mid TYPE zpm_gis_funcloc_mid,
+      fill_work_ctr IMPORTING iv_id_org          TYPE char20
+                    RETURNING VALUE(rv_work_ctr) TYPE cr_objid,
+      fill_sortfield IMPORTING iv_tplnr            TYPE tplnr
+                     RETURNING VALUE(rv_sortfield) TYPE eqfnr,
+      map_funcloc_mid_2_bapi IMPORTING is_funcloc_mid     TYPE zpm_gis_funcloc_mid
+                             EXPORTING ev_external_number TYPE bapi_itob_parms-funcloc
+                                       es_data_general    TYPE bapi_itob
+                                       es_data_specific   TYPE bapi_itob_fl_only
+                                       es_data_generalx   TYPE bapi_itobx
+                                       es_data_specificx  TYPE bapi_itob_fl_onlyx,
+      map_data_classif_general EXPORTING ev_objecttable TYPE bapi1003_key-objecttable
+                                         ev_classtype   TYPE bapi1003_key-classtype
+                                         ev_status      TYPE bapi1003_key-status
+                                         ev_keydate     TYPE bapi1003_key-keydate,
+      map_data_2_gis_map_struct IMPORTING iv_sap_id         TYPE zpm_sap_id
+                                          iv_gis_vrsta      TYPE zpm_gis_vrsta
+                                          iv_gis_id         TYPE zpm_gis_id
+                                RETURNING VALUE(rs_gis_map) TYPE ztpm_gis_map,
+      check_action_exists IMPORTING iv_gis_id        TYPE zpm_gis_id
+                                    iv_akcija        TYPE char01
+                                    it_gis_file_data TYPE STANDARD TABLE
+                          RETURNING VALUE(rv_exists) TYPE boolean                                .
+ENDCLASS.
+
+CLASS lcl_gis_file_sustav_id DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija        TYPE char01,
+             id            TYPE zpm_gis_id,
+             id_org        TYPE char20,
+             id_sustava    TYPE char20,
+             naselje       TYPE char25,
+             opis_lokacije TYPE char50,
+             tlak          TYPE char20,
+             tip_sustava   TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      get_next_sys_id RETURNING VALUE(rv_sys_id) TYPE int4
+                      RAISING   cx_t100_msg,
+      map_data IMPORTING is_gis_file_data        TYPE ty_gis_file
+               EXPORTING es_funcloc_mid          TYPE zpm_gis_funcloc_mid
+                         et_funcloc_mid_substruc TYPE zpm_gis_funcloc_mid_t
+               RAISING   cx_t100_msg,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_reg_stanica DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija       TYPE char01,
+             id           TYPE zpm_gis_id,
+             id_org       TYPE char20,
+             id_sustava   TYPE char20,
+             id_stanice   TYPE char24,
+             naziv        TYPE char30,
+             status       TYPE char20,
+             ulazni_tlak  TYPE char20,
+             izlazni_tlak TYPE char20,
+             smjestaj     TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_plinovod DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija        TYPE char01,
+             id            TYPE zpm_gis_id,
+             id_org        TYPE char20,
+             id_sustava    TYPE char20,
+             tip           TYPE char20,
+             material      TYPE char20,
+             tlak          TYPE char20,
+             opis_lokacije TYPE char50,
+             status        TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_pr_plinovod DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija     TYPE char01,
+             id         TYPE zpm_gis_id,
+             id_org     TYPE char20,
+             id_sustava TYPE char20,
+             tip        TYPE char20,
+             material   TYPE char20,
+             tlak       TYPE char20,
+             status     TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_ventil DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija      TYPE char01,
+             id          TYPE zpm_gis_id,
+             id_org      TYPE char20,
+             id_sustava  TYPE char20,
+             id_ventila  TYPE char20,
+             kljucan     TYPE char20,
+             norm_status TYPE char20,
+             status      TYPE char20,
+             vrsta       TYPE char20,
+             smjestaj    TYPE char20,
+             namjena     TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_red_spojnica DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija     TYPE char01,
+             id         TYPE zpm_gis_id,
+             id_org     TYPE char20,
+             id_sustava TYPE char20,
+             status     TYPE char20,
+             vrsta      TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_kond_posuda DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija     TYPE char01,
+             id         TYPE zpm_gis_id,
+             id_org     TYPE char20,
+             id_sustava TYPE char20,
+             status     TYPE char20,
+             ukopano    TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_lula DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija         TYPE char01,
+             id             TYPE zpm_gis_id,
+             id_org         TYPE char20,
+             id_sustava     TYPE char20,
+             status         TYPE char20,
+             id_zast_cijevi TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+CLASS lcl_gis_file_zast_cijev DEFINITION INHERITING FROM lcl_gis_file.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_gis_file,
+             akcija     TYPE char01,
+             id         TYPE zpm_gis_id,
+             id_org     TYPE char20,
+             id_sustava TYPE char20,
+             materijal  TYPE char20,
+             status     TYPE char20,
+           END OF ty_gis_file.
+
+    METHODS: constructor,
+      process_data REDEFINITION.
+
+  PROTECTED SECTION.
+    DATA: mt_gis_file_data TYPE TABLE OF ty_gis_file.
+
+    METHODS: fill_gis_file_data REDEFINITION,
+      map_data IMPORTING is_gis_file_data TYPE ty_gis_file
+               EXPORTING es_funcloc_mid   TYPE zpm_gis_funcloc_mid,
+      map_data_classif IMPORTING iv_oznaka_fl          TYPE ilom_strno
+                                 is_gis_file_data      TYPE ty_gis_file
+                       EXPORTING ev_objectkey          TYPE bapi1003_key-object
+                                 ev_objecttable        TYPE bapi1003_key-objecttable
+                                 ev_classnum           TYPE bapi1003_key-classnum
+                                 ev_classtype          TYPE bapi1003_key-classtype
+                                 ev_status             TYPE bapi1003_key-status
+                                 ev_keydate            TYPE bapi1003_key-keydate
+                                 et_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char.
+ENDCLASS.
+
+**********************************************************************
+*----------------------------------------------------------------------*
+*       CLASS lcl_application DEFINITION
+*----------------------------------------------------------------------*
+CLASS lcl_application DEFINITION CREATE PRIVATE.
+*
+  PUBLIC SECTION.
+    INTERFACES: lif_rep_types.
+
+
+*   Static Method which will return us the object reference
+    CLASS-METHODS:
+      get_apps_instance
+        RETURNING
+          VALUE(ro_apps) TYPE REF TO lcl_application.
+
+    METHODS: show_file_f4 RETURNING VALUE(rv_filename) TYPE rlgrap-filename,
+      set_sel_screen_params IMPORTING is_sel_scrn_params TYPE lif_rep_types~ty_selscreen,
+      run_program.
+*
+  PRIVATE SECTION.
+*   static class reference to hold the existing object reference
+    CLASS-DATA: lo_apps TYPE REF TO lcl_application.
+
+    METHODS: send_email IMPORTING it_gis_funcloc TYPE zpm_gis_funcloc_fcat_t
+                        RAISING   cx_t100_msg.
+
+    DATA: ms_sel_scrn_params TYPE lif_rep_types~ty_selscreen,
+          mo_log             TYPE REF TO if_reca_message_list.
+
+ENDCLASS.                    "lcl_application DEFINITION
+
+**********************************************************************
+
+CLASS lcl_mod DEFINITION.
+  PUBLIC SECTION.
+    METHODS: commit, rollback.
+ENDCLASS.
+
+CLASS lcl_mod_funcloc DEFINITION INHERITING FROM lcl_mod.
+  PUBLIC SECTION.
+    METHODS: bapi_create IMPORTING iv_external_number TYPE bapi_itob_parms-funcloc
+                                   is_data_general    TYPE bapi_itob
+                                   is_data_specific   TYPE bapi_itob_fl_only
+                                   iv_do_commit       TYPE boolean DEFAULT abap_true
+                         EXPORTING ev_functlocation   TYPE bapi_itob_parms-funcloc_int
+                         RAISING   cx_t100_msg,
+      bapi_update IMPORTING iv_external_number TYPE bapi_itob_parms-funcloc
+                            is_data_general    TYPE bapi_itob
+                            is_data_specific   TYPE bapi_itob_fl_only
+                            is_data_generalx   TYPE  bapi_itobx
+                            is_data_specificx  TYPE bapi_itob_fl_onlyx
+                            iv_do_commit       TYPE boolean DEFAULT abap_true
+                  RAISING   cx_t100_msg,
+      read_objnr IMPORTING iv_tplnr        TYPE objnum
+                 RETURNING VALUE(rv_objnr) TYPE iflot-objnr.
+ENDCLASS.
+
+CLASS lcl_mod_classif DEFINITION INHERITING FROM lcl_mod.
+  PUBLIC SECTION.
+    METHODS: bapi_update IMPORTING iv_objectkey          TYPE bapi1003_key-object
+                                   iv_objecttable        TYPE bapi1003_key-objecttable
+                                   iv_classnum           TYPE bapi1003_key-classnum
+                                   iv_classtype          TYPE bapi1003_key-classtype
+                                   iv_status             TYPE bapi1003_key-status
+                                   iv_keydate            TYPE bapi1003_key-keydate
+                                   it_allocvaluescharnew TYPE tt_bapi1003_alloc_values_char
+                                   iv_do_commit          TYPE boolean DEFAULT abap_true
+                         RAISING   cx_t100_msg.
+ENDCLASS.
+
+CLASS lcl_mod_gis_map DEFINITION INHERITING FROM lcl_mod.
+  PUBLIC SECTION.
+    METHODS: insert_data IMPORTING is_gis_map   TYPE ztpm_gis_map
+                                   iv_do_commit TYPE boolean DEFAULT abap_true
+                         RAISING   cx_t100_msg,
+      read_table_full RETURNING VALUE(rt_gis_map) TYPE ztpm_gis_map_t.
+
+  PRIVATE SECTION.
+    DATA: mt_gis_map TYPE ztpm_gis_map_t.
+ENDCLASS.
+
+CLASS lcl_mod_status DEFINITION INHERITING FROM lcl_mod.
+  PUBLIC SECTION.
+    METHODS: change_extern IMPORTING iv_objnr       TYPE jsto-objnr
+                                     iv_user_status TYPE jest-stat
+                                     iv_do_commit   TYPE boolean DEFAULT abap_true
+                           RAISING   cx_t100_msg,
+      get_extern_status_via_text IMPORTING iv_txt30        TYPE j_txt30
+                                 RETURNING VALUE(rv_estat) TYPE j_estat,
+      change_intern_to_inactive IMPORTING iv_objnr     TYPE jsto-objnr
+                                          iv_do_commit TYPE boolean DEFAULT abap_true
+                                RAISING   cx_t100_msg.
+ENDCLASS.
+
+**********************************************************************
+**********************************************************************
+**********************************************************************
+
+CLASS lcl_file_api IMPLEMENTATION.
+  METHOD factory.
+    ro_obj = SWITCH #( iv_loc_type
+                        WHEN c_loc_type-server THEN NEW lcl_file_api_server( )
+                        WHEN c_loc_type-pc THEN NEW lcl_file_api_pc( )
+                        ELSE THROW cx_sy_no_handler( )
+                     ).
+
+    ro_obj->m_path = iv_path.
+
+  ENDMETHOD.
+
+  METHOD get_filename_from_path.
+    DATA: lv_filename TYPE string,
+          lv_ext      TYPE string.
+
+
+    CALL FUNCTION 'CRM_EMAIL_SPLIT_FILENAME'
+      EXPORTING
+        iv_path      = iv_path
+      IMPORTING
+        ev_filename  = lv_filename
+        ev_extension = lv_ext.
+
+    rv_filename = |{ lv_filename }.{ lv_ext }|.
+    rv_filename = |{ rv_filename CASE = LOWER }|.
+  ENDMETHOD.
+
+  METHOD get_filename_wo_ext.
+    DATA: lv_filename TYPE string,
+          lv_ext      TYPE string.
+
+    CALL FUNCTION 'CRM_EMAIL_SPLIT_FILENAME'
+      EXPORTING
+        iv_path      = iv_filename
+      IMPORTING
+        ev_filename  = lv_filename
+        ev_extension = lv_ext.
+
+    rv_filename = lv_filename.
+  ENDMETHOD.
+
+  METHOD get_path.
+    rv_path = m_path.
+  ENDMETHOD.
+
+  METHOD get_path_via_path_var.
+
+    "get new target path
+    CALL FUNCTION 'WSAF_READ_SAF_PATH'
+      EXPORTING
+        i_path_var     = iv_path_var
+        i_location     = space
+      IMPORTING
+        o_path         = rv_path
+      EXCEPTIONS
+        path_not_found = 1
+        unknown_opsys  = 2
+        wrong_call     = 3
+        OTHERS         = 4.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = 'ZPM'
+          t100_msgno = 010  "Greška kod čitanja putanje za varijablu &
+          t100_msgv1 = CONV #( iv_path_var ).
+    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_file_api_server IMPLEMENTATION.
+  METHOD read_file.
+    DATA ls_text TYPE string. "kcde_cells.
+
+    TRY .
+        OPEN DATASET m_path FOR INPUT IN TEXT MODE ENCODING DEFAULT .
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE cx_t100_msg.
+        ENDIF.
+        DO.
+          CLEAR ls_text.
+          READ DATASET m_path INTO ls_text.
+
+          IF sy-subrc NE 0.
+            CLOSE DATASET m_path.
+            EXIT.
+          ENDIF.
+
+          APPEND ls_text TO et_file_data.
+          CLEAR ls_text.
+        ENDDO.
+
+        "export file infomarion
+        DATA(lv_path) = CONV string( m_path ).
+        CALL FUNCTION 'CRM_EMAIL_SPLIT_FILENAME'
+          EXPORTING
+            iv_path     = lv_path
+          IMPORTING
+            ev_filename = ev_filename.
+*        ev_mimetype  =.
+      CATCH cx_root INTO DATA(lo_root).
+        RAISE EXCEPTION TYPE cx_t100_msg
+          EXPORTING
+*           textid     =
+*           previous   =
+            t100_msgid = 'ZPM'
+            t100_msgno = 001.
+*          t100_msgv1 =
+*          t100_msgv2 =
+*          t100_msgv3 =
+*          t100_msgv4 =.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD move_file.
+    DATA: ls_data TYPE string.
+    DATA(lv_targetpath) = iv_targetpath.
+    DATA(lv_sourcepath) = iv_sourcepath.
+
+    "open file target path
+    OPEN DATASET lv_targetpath FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+*         textid     =
+*         previous   =
+          t100_msgid = 'ZPM'
+          t100_msgno = 008.  "Greška kod kopiranja datoteke
+    ENDIF.
+
+    "open file source path
+    OPEN DATASET lv_sourcepath IN TEXT MODE ENCODING DEFAULT FOR INPUT.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+*         textid     =
+*         previous   =
+          t100_msgid = 'ZPM'
+          t100_msgno = 008.  "Greška kod kopiranja datoteke
+    ENDIF.
+    DO.
+      "read data from source
+      READ DATASET lv_sourcepath INTO ls_data.
+      IF sy-subrc <> 0.
+        EXIT.
+      ENDIF.
+      "transfer data to target
+      TRANSFER ls_data TO lv_targetpath.
+    ENDDO.
+
+    "close  source file
+    CLOSE DATASET  lv_sourcepath.
+    "delete source file
+    DELETE DATASET lv_sourcepath.
+
+    "close  target file.
+    CLOSE DATASET lv_targetpath.
+
+  ENDMETHOD.
+
+  METHOD get_directory_listing.
+
+    CALL FUNCTION 'EPS_GET_DIRECTORY_LISTING'
+      EXPORTING
+        dir_name               = m_path
+        file_mask              = 'CSV files (*.csv)|*.csv'
+* IMPORTING
+*       DIR_NAME               =
+*       FILE_COUNTER           =
+*       ERROR_COUNTER          =
+      TABLES
+        dir_list               = et_listing
+      EXCEPTIONS
+        invalid_eps_subdir     = 1
+        sapgparam_failed       = 2
+        build_directory_failed = 3
+        no_authorization       = 4
+        read_directory_failed  = 5
+        too_many_read_errors   = 6
+        empty_directory_list   = 7
+        OTHERS                 = 8.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = 'ZPM'
+          t100_msgno = 007.  "Greška kod čitanja sadržaja direktorija
+    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_file_api_pc IMPLEMENTATION.
+  METHOD read_file.
+    cl_gui_frontend_services=>gui_upload(
+      EXPORTING
+        filename                = CONV #( m_path )
+*    filetype                = 'ASC'
+*    has_field_separator     = space
+*    header_length           = 0
+*    read_by_line            = 'X'
+*    dat_mode                = space
+*    codepage                =
+*    ignore_cerr             = abap_true
+*    replacement             = '#'
+*    virus_scan_profile      =
+*  IMPORTING
+*    filelength              =
+*    header                  =
+      CHANGING
+        data_tab                = et_file_data
+*    isscanperformed         = space
+      EXCEPTIONS
+        file_open_error         = 1
+        file_read_error         = 2
+        no_batch                = 3
+        gui_refuse_filetransfer = 4
+        invalid_type            = 5
+        no_authority            = 6
+        unknown_error           = 7
+        bad_data_format         = 8
+        header_not_allowed      = 9
+        separator_not_allowed   = 10
+        header_too_long         = 11
+        unknown_dp_error        = 12
+        access_denied           = 13
+        dp_out_of_memory        = 14
+        disk_full               = 15
+        dp_timeout              = 16
+        not_supported_by_gui    = 17
+        error_no_gui            = 18
+        OTHERS                  = 19
+    ).
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+*         textid     =
+*         previous   =
+          t100_msgid = 'ZPM'
+          t100_msgno = 001.
+*          t100_msgv1 =
+*          t100_msgv2 =
+*          t100_msgv3 =
+*          t100_msgv4 =.
+    ENDIF.
+
+    ev_filename = get_filename_from_path( iv_path = CONV #( m_path ) ).
+  ENDMETHOD.
+
+  METHOD move_file.
+
+  ENDMETHOD.
+
+  METHOD get_directory_listing.
+    DATA: lt_file_table TYPE filetable,
+          lv_cnt        TYPE i.
+    DATA lv_dir TYPE string.
+
+
+    et_listing = VALUE #(
+      (
+        name = get_filename_from_path( iv_path = CONV #( m_path ) )
+*    size =
+*    rc   =
+        )
+    ).
+*    lv_dir = iv_dir_name.
+*    cl_gui_frontend_services=>directory_list_files(
+*      EXPORTING
+*        directory                   = CONV #( lv_dir )
+*        filter                      = '*.csv'
+*        files_only                  = 'X'
+**    directories_only            =
+*      CHANGING
+*        file_table                  = lt_file_table
+*        count                       = lv_cnt
+*      EXCEPTIONS
+*        cntl_error                  = 1
+*        directory_list_files_failed = 2
+*        wrong_parameter             = 3
+*        error_no_gui                = 4
+*        not_supported_by_gui        = 5
+*        OTHERS                      = 6
+*    ).
+*    IF sy-subrc <> 0.
+*      RAISE EXCEPTION TYPE cx_t100_msg
+*        EXPORTING
+*          t100_msgid = 'ZPM'
+*          t100_msgno = 007.  "Greška kod čitanja sadržaja direktorija
+*    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.
+
+**********************************************************************
+CLASS lcl_gis_file IMPLEMENTATION.
+  METHOD class_constructor.
+
+    mt_gis_map[] = NEW lcl_mod_gis_map( )->read_table_full( ).
+
+  ENDMETHOD.
+
+  METHOD constructor.
+    m_gis_vrsta = iv_gis_vrsta.
+  ENDMETHOD.
+
+  METHOD factory.
+    ro_obj = SWITCH #( |{ iv_filename CASE = LOWER }|
+                        WHEN c_gis_vrsta_filename-sustav_id THEN NEW lcl_gis_file_sustav_id( )
+                        WHEN c_gis_vrsta_filename-reg_stanica THEN NEW lcl_gis_file_reg_stanica( )
+                        WHEN c_gis_vrsta_filename-plinovod THEN NEW lcl_gis_file_plinovod( )
+                        WHEN c_gis_vrsta_filename-pr_plinovod THEN NEW lcl_gis_file_pr_plinovod( )
+                        WHEN c_gis_vrsta_filename-ventil THEN NEW lcl_gis_file_ventil( )
+                        WHEN c_gis_vrsta_filename-red_spojnica THEN NEW lcl_gis_file_red_spojnica( )
+                        WHEN c_gis_vrsta_filename-kond_posuda THEN NEW lcl_gis_file_kond_posuda( )
+                        WHEN c_gis_vrsta_filename-lula THEN NEW lcl_gis_file_lula( )
+                        WHEN c_gis_vrsta_filename-zast_cijev THEN NEW lcl_gis_file_zast_cijev( )
+                        ELSE THROW cx_sy_no_handler( )
+                     ).
+  ENDMETHOD.
+
+  METHOD get_sap_objekt_id.
+
+    IF iv_gis_vrsta IS SUPPLIED.
+      DATA(lv_gis_vrsta) = iv_gis_vrsta.
+    ELSE.
+      lv_gis_vrsta = m_gis_vrsta.
+    ENDIF.
+
+    TRY.
+        rv_sap_id = COND #( WHEN iv_sap_objekt IS SUPPLIED
+                              THEN mt_gis_map[ gis_vrsta = lv_gis_vrsta
+                                               gis_id = iv_gis_id
+                                               sap_objekt = iv_sap_objekt ]-sap_id
+                            ELSE mt_gis_map[ gis_vrsta = lv_gis_vrsta gis_id = iv_gis_id ]-sap_id
+                           ).
+      CATCH cx_sy_itab_line_not_found.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD determine_maint_type.
+
+    DATA(lv_sap_id) = get_sap_objekt_id( iv_gis_id = iv_gis_id ).
+    rv_maint_type = COND #( WHEN lv_sap_id EQ 0 AND iv_action NE 'D'
+                              THEN COND #( WHEN check_action_exists(
+                                                  iv_akcija       = 'D'
+                                                  iv_gis_id        = iv_gis_id
+                                                  it_gis_file_data = it_gis_file_data
+                                                ) EQ abap_false
+                                             THEN c_maint_type-insert
+                                             ELSE c_maint_type-skip )
+                            WHEN lv_sap_id NE 0 AND iv_action EQ 'D'
+                              THEN COND #( WHEN check_action_exists(
+                                                  iv_akcija       = 'I'
+                                                  iv_gis_id        = iv_gis_id
+                                                  it_gis_file_data = it_gis_file_data
+                                                ) EQ abap_false
+                                              THEN c_maint_type-delete
+                                              ELSE c_maint_type-skip )
+                            WHEN lv_sap_id NE 0 THEN c_maint_type-update
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_org_data.
+
+    cs_funcloc_mid = VALUE zpm_gis_funcloc_mid( BASE cs_funcloc_mid
+        maintplant = |F100|
+        costcenter = get_sap_objekt_id(
+                       iv_gis_id     = CONV #( iv_id_org )
+                       iv_gis_vrsta  = c_map_gis_vrsta-org
+                       iv_sap_objekt = c_map_sap_objekt-costcenter
+                     )
+        planplant  = |F100|
+        plsectn    = get_sap_objekt_id(
+                       iv_gis_id     = CONV #( iv_id_org )
+                       iv_gis_vrsta  = c_map_gis_vrsta-org
+                       iv_sap_objekt = c_map_sap_objekt-plsectn
+                     )
+        work_ctr   = fill_work_ctr( iv_id_org = iv_id_org )
+        pp_wkctr   = get_sap_objekt_id(
+                        iv_gis_id     = CONV #( iv_id_org )
+                        iv_gis_vrsta  = c_map_gis_vrsta-org
+                        iv_sap_objekt = c_map_sap_objekt-work_ctr
+                      )
+        plangroup  = get_sap_objekt_id(
+                        iv_gis_id     = CONV #( iv_id_org )
+                        iv_gis_vrsta  = c_map_gis_vrsta-org
+                        iv_sap_objekt = c_map_sap_objekt-plangroup
+                      )
+        sales_off  = get_sap_objekt_id(
+                        iv_gis_id     = CONV #( iv_id_org )
+                        iv_gis_vrsta  = c_map_gis_vrsta-org
+                        iv_sap_objekt = c_map_sap_objekt-sales_off
+                      )
+        authgrp    = get_sap_objekt_id(
+                        iv_gis_id     = CONV #( iv_id_org )
+                        iv_gis_vrsta  = c_map_gis_vrsta-org
+                        iv_sap_objekt = c_map_sap_objekt-authgrp
+                      )
+    ).
+
+  ENDMETHOD.
+
+  METHOD fill_work_ctr.
+
+    DATA(lv_sap_id) = get_sap_objekt_id(
+                        iv_gis_id     = CONV #( iv_id_org )
+                        iv_gis_vrsta  = c_map_gis_vrsta-org
+                        iv_sap_objekt = c_map_sap_objekt-work_ctr
+                      ).
+
+    SELECT objid, begda, endda
+      INTO TABLE @DATA(lt_crhd)
+      FROM crhd
+      WHERE arbpl = @lv_sap_id.
+    IF sy-subrc = 0.
+      SORT lt_crhd BY objid endda DESCENDING.
+      TRY.
+          rv_work_ctr = lt_crhd[ 1 ]-objid.
+        CATCH cx_sy_itab_line_not_found.
+      ENDTRY.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD fill_sortfield.
+
+    SELECT SINGLE eqfnr
+      INTO rv_sortfield
+      FROM iloa AS t1 JOIN iflot AS t2 ON t1~iloan = t2~iloan
+      WHERE t2~tplnr = iv_tplnr.
+
+  ENDMETHOD.
+
+  METHOD map_funcloc_mid_2_bapi.
+
+    ev_external_number = is_funcloc_mid-oznaka_fl.
+
+    es_data_general = VALUE bapi_itob(
+      objecttype = is_funcloc_mid-eqart
+      maintplant = is_funcloc_mid-maintplant
+      descript   = is_funcloc_mid-naziv_fl
+      costcenter = is_funcloc_mid-costcenter
+      planplant  = is_funcloc_mid-planplant
+      comp_code  = c_funcloc-comp_code_0035
+      plsectn    = is_funcloc_mid-plsectn
+      start_from = sy-datum
+      work_ctr   = is_funcloc_mid-work_ctr
+      pp_wkctr   = is_funcloc_mid-pp_wkctr
+      plangroup  = is_funcloc_mid-plangroup
+      sortfield  = is_funcloc_mid-sortfield
+      authgrp    = is_funcloc_mid-authgrp
+      sales_org  = c_funcloc-sales_org_1000
+      distr_chan = c_funcloc-distr_chan_10
+      division   = c_funcloc-division_10
+      sales_off  = is_funcloc_mid-sales_off
+    ).
+
+    es_data_specific = VALUE bapi_itob_fl_only(
+        strind                  = c_funcloc-strind_zpm03
+        category                = c_funcloc-category_m
+        supfloc                 = is_funcloc_mid-nadr_fl
+        eqinstall               = abap_true
+    ).
+
+    es_data_generalx = VALUE #(
+      objecttype = abap_true
+      maintplant = abap_true
+      descript   = abap_true
+      costcenter = abap_true
+      planplant  = abap_true
+      comp_code  = abap_true
+      plsectn    = abap_true
+      start_from = abap_true
+      work_ctr   = abap_true
+      pp_wkctr   = abap_true
+      plangroup  = abap_true
+      sortfield  = abap_true
+      authgrp    = abap_true
+      sales_org  = abap_true
+      distr_chan = abap_true
+      division   = abap_true
+      sales_off  = abap_true
+    ).
+
+    es_data_specificx = VALUE #(
+        strind                  = abap_true
+        category                = abap_true
+        supfloc                 = abap_true
+        eqinstall               = abap_true
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_data_classif_general.
+
+    ev_objecttable = c_classif-objecttable_iflot.
+    ev_classtype = c_classif-classtype_003.
+    ev_status = c_classif-status_1.
+    ev_keydate = sy-datum.
+
+  ENDMETHOD.
+
+  METHOD map_data_2_gis_map_struct.
+
+    rs_gis_map = VALUE ztpm_gis_map(
+*    mandt      =
+        sap_objekt = 'FL'
+        sap_id     = iv_sap_id
+        gis_vrsta  = iv_gis_vrsta
+        gis_id     = iv_gis_id
+        erdat      = sy-datum
+        ernam      = sy-uname
+*    aedat      =
+*    aenam      =
+    ).
+
+  ENDMETHOD.
+
+  METHOD check_action_exists.
+    DATA: lo_type_def    TYPE REF TO cl_abap_typedescr.
+    DATA: lo_struct_def  TYPE REF TO cl_abap_structdescr.
+    DATA: lt_components TYPE cl_abap_structdescr=>component_table,
+          ls_component  TYPE abap_componentdescr.
+
+    FIELD-SYMBOLS: <ls_field_value>  TYPE any,
+                   <ls_field_value2> TYPE any.
+
+    LOOP AT it_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      ASSIGN COMPONENT 'ID' OF STRUCTURE <ls_gis_file_data> TO <ls_field_value>.
+      IF <ls_field_value> IS ASSIGNED AND <ls_field_value> EQ iv_gis_id.
+        ASSIGN COMPONENT 'AKCIJA' OF STRUCTURE <ls_gis_file_data> TO <ls_field_value>.
+        IF <ls_field_value> IS ASSIGNED AND <ls_field_value> EQ iv_akcija.
+          rv_exists = abap_true.
+          RETURN.
+        ENDIF.
+        UNASSIGN: <ls_field_value>, <ls_field_value2>.
+      ENDIF.
+    ENDLOOP.
+
+    rv_exists = abap_false.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS lcl_gis_file_sustav_id IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-sustav_id ).
+  ENDMETHOD.
+  METHOD process_data.
+
+* fill structured itab from file data
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY .
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid          = DATA(ls_funcloc_mid)
+              et_funcloc_mid_substruc = DATA(lt_funcloc_mid_substruc)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                 iv_gis_id = <ls_gis_file_data>-id
+                 iv_action = <ls_gis_file_data>-akcija
+                 it_gis_file_data = mt_gis_file_data
+               ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* create substructure
+              LOOP AT lt_funcloc_mid_substruc ASSIGNING FIELD-SYMBOL(<ls_mid_substruc>).
+* map to bapi structure
+                map_funcloc_mid_2_bapi(
+                  EXPORTING
+                    is_funcloc_mid     = <ls_mid_substruc>
+                  IMPORTING
+                    ev_external_number = lv_ext_number
+                    es_data_general    = ls_general
+                    es_data_specific   = ls_specific
+                    es_data_generalx   = ls_generalx
+                    es_data_specificx  = ls_specificx
+                ).
+
+                DATA(lo_funcloc_sub) = NEW lcl_mod_funcloc( ).
+                lo_funcloc_sub->bapi_create(
+                  EXPORTING
+                    iv_external_number = lv_ext_number
+                    is_data_general    = ls_general
+                    is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*              IMPORTING
+*                    ev_functlocation   =
+                ).
+                CLEAR: lo_funcloc_sub.
+              ENDLOOP.
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-naselje
+             <ls_gis_file_data>-opis_lokacije
+             <ls_gis_file_data>-tlak
+             <ls_gis_file_data>-tip_sustava.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD get_next_sys_id.
+
+    CALL FUNCTION 'NUMBER_GET_NEXT'
+      EXPORTING
+        nr_range_nr             = '01'
+        object                  = 'ZPM_GSYSID'
+      IMPORTING
+        number                  = rv_sys_id
+      EXCEPTIONS
+        interval_not_found      = 1
+        number_range_not_intern = 2
+        object_not_found        = 3
+        quantity_is_0           = 4
+        quantity_is_not_1       = 5
+        interval_overflow       = 6
+        buffer_overflow         = 7
+        OTHERS                  = 8.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+*         textid     =
+*         previous   =
+          t100_msgid = 'ZPM'
+          t100_msgno = 002  "Greška kod dohvata brojača &
+          t100_msgv1 = 'ZPM_GSYSID'
+*         t100_msgv2 =
+*         t100_msgv3 =
+*         t100_msgv4 =
+        .
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD map_data.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_sys_id) = get_next_sys_id( ).
+*                  CATCH cx_t100_msg.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_sys_id }|
+        nadr_fl    = |2-{ lv_org_sap_id }|
+        eqart      = |F10080|
+        naziv_fl   = |{ is_gis_file_data-id_sustava } { is_gis_file_data-opis_lokacije }|
+        sortfield  = is_gis_file_data-naselje
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+* funcloc substructure map
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING FIELD-SYMBOL(<ls_substruct>).
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-RST|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-RST|.
+
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING <ls_substruct>.
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-PNV|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-PNV|.
+
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING <ls_substruct>.
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-PPV|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-PPV|.
+
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING <ls_substruct>.
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-VNT|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-VNT|.
+
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING <ls_substruct>.
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-RSP|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-RSP|.
+
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING <ls_substruct>.
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-KPO|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-KPO|.
+
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING <ls_substruct>.
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-LULA|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-LULA|.
+
+
+    APPEND INITIAL LINE TO et_funcloc_mid_substruc ASSIGNING <ls_substruct>.
+    <ls_substruct> = es_funcloc_mid.
+    <ls_substruct>-oznaka_fl = |{ <ls_substruct>-oznaka_fl }-ZCV|.
+    <ls_substruct>-naziv_fl = |{ <ls_substruct>-naziv_fl }-ZCV|.
+
+  ENDMETHOD.
+
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-sustav.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_tlak
+        value_neutral = is_gis_file_data-tlak
+      )
+      (
+        charact       = c_charact-to_sustav_tip
+        value_neutral = is_gis_file_data-tip_sustava
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_gis_file_reg_stanica IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-reg_stanica ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-id_stanice
+             <ls_gis_file_data>-naziv
+             <ls_gis_file_data>-status
+             <ls_gis_file_data>-ulazni_tlak
+             <ls_gis_file_data>-izlazni_tlak
+             <ls_gis_file_data>-smjestaj.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-RST-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-RST|
+        eqart      = |F10070|
+        naziv_fl   = |{ is_gis_file_data-naziv }|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-RST-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-reg_stanica.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_tlak_ulazni
+        value_neutral = is_gis_file_data-ulazni_tlak
+      )
+      (
+        charact       = c_charact-to_tlak_izlazni
+        value_neutral = is_gis_file_data-izlazni_tlak
+      )
+      (
+        charact       = c_charact-to_smjestaj
+        value_neutral = is_gis_file_data-smjestaj
+      )
+    ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS lcl_gis_file_plinovod IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-plinovod ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-tip
+             <ls_gis_file_data>-material
+             <ls_gis_file_data>-tlak
+             <ls_gis_file_data>-opis_lokacije
+             <ls_gis_file_data>-status.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-PNV-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-PNV|
+        eqart      = |10050|
+        naziv_fl   = |{ is_gis_file_data-material } { is_gis_file_data-opis_lokacije }|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-PNV-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-plinovod.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_model
+        value_neutral = is_gis_file_data-tip
+      )
+      (
+        charact       = c_charact-to_material
+        value_neutral = is_gis_file_data-material
+      )
+      (
+        charact       = c_charact-to_tlak
+        value_neutral = is_gis_file_data-tlak
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_gis_file_pr_plinovod IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-pr_plinovod ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-tip
+             <ls_gis_file_data>-material
+             <ls_gis_file_data>-tlak
+             <ls_gis_file_data>-status.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-PPV-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-PPV|
+        eqart      = |10090|
+        naziv_fl   = |Priključni plinovod|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-PPV-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-pr_plinovod.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_model
+        value_neutral = is_gis_file_data-tip
+      )
+      (
+        charact       = c_charact-to_material
+        value_neutral = is_gis_file_data-material
+      )
+      (
+        charact       = c_charact-to_tlak
+        value_neutral = is_gis_file_data-tlak
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_gis_file_ventil IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-ventil ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-id_ventila
+             <ls_gis_file_data>-kljucan
+             <ls_gis_file_data>-norm_status
+             <ls_gis_file_data>-status
+             <ls_gis_file_data>-vrsta
+             <ls_gis_file_data>-smjestaj
+             <ls_gis_file_data>-namjena.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-VNT-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-VNT|
+        eqart      = |10100|
+        naziv_fl   = |{ is_gis_file_data-id_ventila }|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-VNT-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-ventil.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_vent_krit
+        value_neutral = is_gis_file_data-kljucan
+      )
+      (
+        charact       = c_charact-to_norm_status
+        value_neutral = is_gis_file_data-norm_status
+      )
+      (
+        charact       = c_charact-to_vent_vrsta
+        value_neutral = is_gis_file_data-vrsta
+      )
+      (
+        charact       = c_charact-to_smjestaj
+        value_neutral = is_gis_file_data-smjestaj
+      )
+      (
+        charact       = c_charact-to_namjena
+        value_neutral = is_gis_file_data-namjena
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_gis_file_red_spojnica IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-red_spojnica ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-status
+             <ls_gis_file_data>-vrsta.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-RSP-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-RSP|
+        eqart      = |10110|
+        naziv_fl   = |Redukcija spojnica|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-RSP-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-red_spojnica.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_red_sp_vrsta
+        value_neutral = is_gis_file_data-vrsta
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_gis_file_kond_posuda IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-kond_posuda ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-status
+             <ls_gis_file_data>-ukopano.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-KPO-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-KPO|
+        eqart      = |10120|
+        naziv_fl   = |{ is_gis_file_data-id }|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-KPO-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-kond_posuda.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_ukopano
+        value_neutral = is_gis_file_data-ukopano
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_gis_file_lula IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-lula ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-status
+             <ls_gis_file_data>-id_zast_cijevi.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-LUL-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-LUL|
+        eqart      = |10130|
+        naziv_fl   = |{ is_gis_file_data-id }|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-LUL-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-lula.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_id_zast_cijevi
+        value_neutral = is_gis_file_data-id_zast_cijevi
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_gis_file_zast_cijev IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( iv_gis_vrsta = c_gis_vrsta-zast_cijev ).
+  ENDMETHOD.
+  METHOD process_data.
+
+    fill_gis_file_data( it_file_data = it_file_data ).
+
+    LOOP AT mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      DATA(lv_tabix) = sy-tabix.
+
+      TRY.
+* map to mid structure
+          map_data(
+            EXPORTING
+              is_gis_file_data = <ls_gis_file_data>
+            IMPORTING
+              es_funcloc_mid = DATA(ls_funcloc_mid)
+          ).
+
+* map to bapi structure
+          map_funcloc_mid_2_bapi(
+            EXPORTING
+              is_funcloc_mid     = ls_funcloc_mid
+            IMPORTING
+              ev_external_number = DATA(lv_ext_number)
+              es_data_general    = DATA(ls_general)
+              es_data_specific   = DATA(ls_specific)
+              es_data_generalx   = DATA(ls_generalx)
+              es_data_specificx  = DATA(ls_specificx)
+          ).
+
+          CASE determine_maint_type(
+                           iv_gis_id = <ls_gis_file_data>-id
+                           iv_action = <ls_gis_file_data>-akcija
+                           it_gis_file_data = mt_gis_file_data
+                         ).
+            WHEN c_maint_type-insert.
+* create funcloc
+              DATA(lo_funcloc) = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_create(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+*                    iv_do_commit       = abap_true
+*            IMPORTING
+*                    ev_functlocation   =
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = DATA(lv_objectkey)
+                  ev_objecttable        = DATA(lv_objecttable)
+                  ev_classnum           = DATA(lv_classnum)
+                  ev_classtype          = DATA(lv_classtype)
+                  ev_status             = DATA(lv_status)
+                  ev_keydate            = DATA(lv_keydate)
+                  et_allocvaluescharnew = DATA(lt_allocvaluescharnew)
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              DATA(lo_mod_status) = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+
+* update ZTPM_GIS_MAP table
+              DATA(ls_gis_map_ins) = map_data_2_gis_map_struct(
+                EXPORTING
+                  iv_sap_id    = ls_funcloc_mid-oznaka_fl
+                  iv_gis_vrsta = CONV #( c_classnum-sustav )
+                  iv_gis_id    = <ls_gis_file_data>-id
+              ).
+
+              NEW lcl_mod_gis_map( )->insert_data(
+                EXPORTING
+                  is_gis_map   = ls_gis_map_ins
+*    iv_do_commit = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+            WHEN c_maint_type-update.
+* update funcloc
+              lo_funcloc = NEW lcl_mod_funcloc( ).
+              lo_funcloc->bapi_update(
+                EXPORTING
+                  iv_external_number = lv_ext_number
+                  is_data_general    = ls_general
+                  is_data_specific   = ls_specific
+                  is_data_generalx   = ls_generalx
+                  is_data_specificx  = ls_specificx
+*              iv_do_commit       = abap_true
+              ).
+
+* map to classification structure
+              map_data_classif(
+                EXPORTING
+                  iv_oznaka_fl          = lv_ext_number
+                  is_gis_file_data      = <ls_gis_file_data>
+                IMPORTING
+                  ev_objectkey          = lv_objectkey
+                  ev_objecttable        = lv_objecttable
+                  ev_classnum           = lv_classnum
+                  ev_classtype          = lv_classtype
+                  ev_status             = lv_status
+                  ev_keydate            = lv_keydate
+                  et_allocvaluescharnew = lt_allocvaluescharnew
+              ).
+
+* update classification
+              NEW lcl_mod_classif( )->bapi_update(
+                EXPORTING
+                  iv_objectkey          = lv_objectkey
+                  iv_objecttable        = lv_objecttable
+                  iv_classnum           = lv_classnum
+                  iv_classtype          = lv_classtype
+                  iv_status             = lv_status
+                  iv_keydate            = lv_keydate
+                  it_allocvaluescharnew = lt_allocvaluescharnew
+*    iv_do_commit          = abap_true
+              ).
+*CATCH cx_t100_msg.
+
+* update external status
+              lo_mod_status = NEW lcl_mod_status( ).
+              lo_mod_status->change_extern(
+                EXPORTING
+                  iv_objnr       = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+                  iv_user_status = lo_mod_status->get_extern_status_via_text( iv_txt30 = '' )
+*              iv_do_commit   = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN c_maint_type-delete.
+* set status inactive
+              NEW lcl_mod_status( )->change_intern_to_inactive(
+                EXPORTING
+                  iv_objnr     = lo_funcloc->read_objnr( iv_tplnr = CONV #( lv_ext_number ) )
+*              iv_do_commit = abap_true
+              ).
+*          CATCH cx_t100_msg.
+            WHEN OTHERS.
+          ENDCASE.
+
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-ok
+            )
+          ).
+
+          CLEAR: lo_funcloc,
+                 ls_funcloc_mid,
+                 lv_ext_number,
+                 lv_objectkey,
+                 lv_objecttable,
+                 lv_classnum,
+                 lv_classtype,
+                 lv_status,
+                 lv_keydate,
+                 lt_allocvaluescharnew,
+                 lo_mod_status,
+                 ls_gis_map_ins.
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          ct_funcloc_main_stat = VALUE #( BASE ct_funcloc_main_stat (
+              filename      = c_gis_vrsta_filename-sustav_id
+              row_id        = lv_tabix
+              oznaka_fl     = ls_funcloc_mid-oznaka_fl
+              naziv_fl      = ls_funcloc_mid-naziv_fl
+              gis_id        = <ls_gis_file_data>-id
+              status_obrade = c_status_obrade-nok
+              id            = lo_err->t100_msgid
+              number        = lo_err->t100_msgno
+              message       = lo_err->get_text( )
+            )
+          ).
+      ENDTRY.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD fill_gis_file_data.
+
+    LOOP AT it_file_data ASSIGNING FIELD-SYMBOL(<ls_file_data>).
+      APPEND INITIAL LINE TO mt_gis_file_data ASSIGNING FIELD-SYMBOL(<ls_gis_file_data>).
+      SPLIT <ls_file_data> AT c_field_separator
+        INTO <ls_gis_file_data>-akcija
+             <ls_gis_file_data>-id
+             <ls_gis_file_data>-id_org
+             <ls_gis_file_data>-id_sustava
+             <ls_gis_file_data>-materijal
+             <ls_gis_file_data>-status.
+    ENDLOOP.
+
+  ENDMETHOD.
+  METHOD map_data.
+    DATA: lv_id TYPE be_rec_len.
+
+    DATA(lv_org_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_org )
+                               iv_gis_vrsta = c_map_gis_vrsta-org
+                             ).
+    DATA(lv_network_sap_id) = get_sap_objekt_id(
+                               iv_gis_id    = CONV #( is_gis_file_data-id_sustava )
+                               iv_gis_vrsta = c_map_gis_vrsta-sustav
+                               iv_sap_objekt = c_map_sap_objekt-network_id
+                             ).
+    lv_id = is_gis_file_data-id.
+
+    es_funcloc_mid = VALUE zpm_gis_funcloc_mid(
+        oznaka_fl  = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-ZCV-{ lv_id ALPHA = IN }|
+        nadr_fl    = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-ZCV|
+        eqart      = |10140|
+        naziv_fl   = |Zaštitna cijev|
+        sortfield  = fill_sortfield( iv_tplnr = |2-{ lv_org_sap_id }-{ lv_network_sap_id }-ZCV-{ lv_id ALPHA = IN }| )
+    ).
+
+    map_org_data(
+      EXPORTING
+        iv_id_org      = is_gis_file_data-id_org
+      CHANGING
+        cs_funcloc_mid = es_funcloc_mid
+    ).
+
+  ENDMETHOD.
+
+  METHOD map_data_classif.
+
+    ev_objectkey = iv_oznaka_fl.
+
+    map_data_classif_general(
+      IMPORTING
+        ev_objecttable = ev_objecttable
+        ev_classtype   = ev_classtype
+        ev_status      = ev_status
+        ev_keydate     = sy-datum
+    ).
+
+    ev_classnum = c_classnum-zast_cijev.
+
+    et_allocvaluescharnew = VALUE #(
+      (
+        charact       = c_charact-to_material
+        value_neutral = is_gis_file_data-materijal
+      )
+    ).
+
+  ENDMETHOD.
+ENDCLASS.
+**********************************************************************
+*----------------------------------------------------------------------*
+*       CLASS lcl_application IMPLEMENTATION
+*----------------------------------------------------------------------*
+CLASS lcl_application IMPLEMENTATION.
+*
+* This method will return the object reference to the calling application
+  METHOD get_apps_instance.
+    IF lo_apps IS INITIAL.
+*     creation of the object
+      CREATE OBJECT lo_apps.
+    ENDIF.
+*   assigning reference back to exporting parameter
+    ro_apps = lo_apps.
+  ENDMETHOD.                    "get_apps_instance
+
+  METHOD show_file_f4.
+    DATA: lt_file_table TYPE filetable,
+          lv_rc         TYPE i,
+          lv_path       TYPE wsaf_dir_saf.
+
+
+    IF ms_sel_scrn_params-p_apl = 'X'.
+*set default directory
+      DATA: lv_directory(500).
+      lv_directory = '//sos01ddi01/sapmnt/trans/HEP_plin_DIR'. "set directory
+
+      TRY.
+          lv_path = lcl_file_api=>get_path_via_path_var( iv_path_var = 'Z_GIS_IN' ).
+        CATCH cx_t100_msg INTO DATA(lo_err).
+          MESSAGE lo_err TYPE 'E'.
+      ENDTRY.
+
+      lv_directory = lv_path.
+
+*F4 help for file name on SAP application server
+      CALL FUNCTION '/SAPDMC/LSM_F4_SERVER_FILE'
+        EXPORTING
+          directory        = lv_directory
+        IMPORTING
+          serverfile       = rv_filename
+        EXCEPTIONS
+          canceled_by_user = 1
+          OTHERS           = 2.
+
+    ELSE.
+      CALL METHOD cl_gui_frontend_services=>file_open_dialog
+        EXPORTING
+          window_title      = 'Select File'
+*         default_filename  = '*.CSV'
+          file_filter       = 'CSV Files (*.csv)|*.csv'
+          default_extension = 'csv'
+          multiselection    = ' '
+        CHANGING
+          file_table        = lt_file_table
+          rc                = lv_rc.
+
+      IF lt_file_table IS NOT INITIAL.
+        rv_filename = lt_file_table[ 1 ]-filename.
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD set_sel_screen_params.
+    ms_sel_scrn_params = is_sel_scrn_params.
+  ENDMETHOD.
+
+  METHOD run_program.
+    DATA: lt_funcloc_main_stat TYPE zpm_gis_funcloc_fcat_t.
+    DATA: lv_path_new         TYPE wsaf_dir_saf.
+
+* application log
+    mo_log = cf_reca_message_list=>create( id_object = 'ZPM' id_subobject = 'FLOC_GIS' ).
+
+    BREAK-POINT.
+
+    TRY .
+        DATA(lo_file_api) = lcl_file_api=>factory(
+                              iv_loc_type = COND #( WHEN ms_sel_scrn_params-p_loc EQ abap_true THEN lcl_file_api=>c_loc_type-pc
+                                                    WHEN ms_sel_scrn_params-p_apl EQ abap_true THEN lcl_file_api=>c_loc_type-server )
+                              iv_path     = ms_sel_scrn_params-p_file
+                            ).
+
+        lo_file_api->get_directory_listing(
+          IMPORTING
+            et_listing  = DATA(lt_listing)
+        ).
+*CATCH cx_t100_msg.
+
+        TRY.
+            DATA(ls_listing_sustav_id) = lt_listing[ name = lcl_gis_file=>c_gis_vrsta_filename-sustav_id ].
+            TRY .
+                mo_log->add(
+                  EXPORTING
+                    id_msgty         = 'I'
+                    id_msgid         = 'ZPM'
+                    id_msgno         = 009  "Obrada datoteke &
+                    id_msgv1         = ls_listing_sustav_id-name
+                ).
+
+* flat file data (generic)
+                lo_file_api->read_file(
+                  IMPORTING
+                    et_file_data = DATA(lt_file_data)
+                    ev_filename  = DATA(lv_filename)
+                ).
+*    CATCH cx_t100_msg.
+
+                DATA(lo_gis_file) = lcl_gis_file=>factory( iv_filename = lv_filename ).
+                lo_gis_file->process_data(
+                  EXPORTING
+                    it_file_data         = lt_file_data
+                  CHANGING
+                    ct_funcloc_main_stat = lt_funcloc_main_stat
+                ).
+*        CATCH cx_t100_msg.
+
+
+**********************************************************************
+                DATA(lv_path) = lo_file_api->get_path( ).
+                IF lv_path CS lv_filename.
+                ELSE.
+                  lv_path = |{ lv_path }\\{ lv_filename }|.
+                ENDIF.
+
+                lv_path_new = lo_file_api->get_path_via_path_var( iv_path_var = 'Z_GIS_OUT' ).
+*CATCH cx_t100_msg.
+
+                "create new filename
+                lv_path_new = lv_path_new && '\' && lo_file_api->get_filename_wo_ext( iv_filename = lv_filename ) && sy-datum && '_' && sy-uzeit && '.csv'.
+
+                lo_file_api->move_file(
+                  EXPORTING
+                    iv_sourcepath = lv_path
+                    iv_targetpath = CONV #( lv_path_new )
+                ).
+*CATCH cx_t100_msg.
+**********************************************************************
+              CATCH cx_t100_msg INTO DATA(lo_err).
+                mo_log->add_from_exception(
+                  EXPORTING
+                    io_exception = lo_err
+                ).
+            ENDTRY.
+          CATCH cx_sy_itab_line_not_found.
+        ENDTRY.
+        LOOP AT lt_listing ASSIGNING FIELD-SYMBOL(<ls_listing>) WHERE name NE lcl_gis_file=>c_gis_vrsta_filename-sustav_id.
+          TRY .
+              mo_log->add(
+                EXPORTING
+                  id_msgty         = 'I'
+                  id_msgid         = 'ZPM'
+                  id_msgno         = 009  "Obrada datoteke &
+                  id_msgv1         = <ls_listing>-name
+              ).
+
+* flat file data (generic)
+              lo_file_api->read_file(
+                IMPORTING
+                  et_file_data = lt_file_data
+                  ev_filename  = lv_filename
+              ).
+*    CATCH cx_t100_msg.
+
+              lo_gis_file = lcl_gis_file=>factory( iv_filename = lv_filename ).
+              lo_gis_file->process_data(
+                EXPORTING
+                  it_file_data         = lt_file_data
+                CHANGING
+                  ct_funcloc_main_stat = lt_funcloc_main_stat
+              ).
+*        CATCH cx_t100_msg.
+
+**********************************************************************
+              lv_path = lo_file_api->get_path( ).
+              IF lv_path CS lv_filename.
+              ELSE.
+                lv_path = |{ lv_path }\\{ lv_filename }|.
+              ENDIF.
+
+              lv_path_new = lo_file_api->get_path_via_path_var( iv_path_var = 'Z_GIS_OUT' ).
+*CATCH cx_t100_msg.
+
+              "create new filename
+              lv_path_new = lv_path_new && '\' && lo_file_api->get_filename_wo_ext( iv_filename = lv_filename ) && sy-datum && '_' && sy-uzeit && '.csv'.
+
+              lo_file_api->move_file(
+                EXPORTING
+                  iv_sourcepath = lv_path
+                  iv_targetpath = CONV #( lv_path_new )
+              ).
+*CATCH cx_t100_msg.
+**********************************************************************
+            CATCH cx_root INTO DATA(lo_root_err).
+              mo_log->add_from_exception(
+                EXPORTING
+                  io_exception = lo_root_err
+              ).
+          ENDTRY.
+        ENDLOOP.
+
+        IF ms_sel_scrn_params-p_email EQ abap_true.
+          send_email( it_gis_funcloc = lt_funcloc_main_stat ).
+        ENDIF.
+
+        mo_log->add(
+          EXPORTING
+            id_msgty         = 'S'
+            id_msgid         = 'ZPM'
+            id_msgno         = 006  "Obrada ažuriranja završila
+        ).
+
+        mo_log->store(
+          EXPORTING
+            if_in_update_task = abap_false
+          EXCEPTIONS
+            error             = 1
+            OTHERS            = 2
+        ).
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ENDIF.
+
+        cl_salv_table=>factory(
+*          EXPORTING
+*            list_display   = if_salv_c_bool_sap=>false
+*            r_container    =
+*            container_name =
+          IMPORTING
+            r_salv_table   = DATA(lo_alv)
+          CHANGING
+            t_table        = lt_funcloc_main_stat
+        ).
+*        CATCH cx_salv_msg.
+
+        lo_alv->display( ).
+      CATCH cx_root INTO DATA(lo_root).
+        mo_log->add_from_exception(
+          EXPORTING
+            io_exception = lo_root
+        ).
+
+        mo_log->store(
+          EXPORTING
+            if_in_update_task = abap_false
+          EXCEPTIONS
+            error             = 1
+            OTHERS            = 2
+        ).
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ENDIF.
+
+        MESSAGE lo_root TYPE 'E'.
+    ENDTRY.
+
+
+  ENDMETHOD.
+
+  METHOD send_email.
+    TYPES: BEGIN OF ty_subtotal,
+             filename TYPE edi_filena,
+             ok       TYPE int4,
+             nok      TYPE int4,
+           END OF ty_subtotal.
+
+    "send email
+    DATA: lt_body      TYPE soli_tab,
+          lv_subject   TYPE so_obj_des,
+          lv_desc_name TYPE bu_descrip_name_long,
+          lt_return    TYPE bapiret2_t,
+          lv_email     TYPE adr6-smtp_addr.
+    DATA: lt_gis_funcloc_subtot TYPE TABLE OF ty_subtotal,
+          ls_gis_funcloc_subtot LIKE LINE OF lt_gis_funcloc_subtot.
+
+
+    LOOP AT it_gis_funcloc ASSIGNING FIELD-SYMBOL(<ls_funcloc>).
+      ls_gis_funcloc_subtot-filename = <ls_funcloc>-filename.
+      ls_gis_funcloc_subtot-ok = COND #( WHEN <ls_funcloc>-status_obrade EQ lcl_gis_file=>c_status_obrade-ok THEN 1 ).
+      ls_gis_funcloc_subtot-nok = COND #( WHEN <ls_funcloc>-status_obrade EQ lcl_gis_file=>c_status_obrade-nok THEN 1 ).
+      COLLECT ls_gis_funcloc_subtot INTO lt_gis_funcloc_subtot.
+    ENDLOOP.
+
+    TRY.
+        DATA(lo_send_request) = cl_bcs=>create_persistent( ).
+        CALL METHOD lo_send_request->set_send_immediately
+          EXPORTING
+            i_send_immediately = abap_true.
+        "Email FROM...
+        DATA(lo_sender) = cl_sapuser_bcs=>create( 'BTC_USER' ).
+
+        "Add sender to send request
+        lo_send_request->set_sender( i_sender = lo_sender ).
+        "Email TO...
+        lv_email = zcl_bc_utils=>get_param( i_param = 'ZPM_GIS_MAIL' ).
+*              CATCH cx_t100_msg.
+
+        DATA(lo_recipient) = cl_cam_address_bcs=>create_internet_address(  lv_email ).
+        "Add recipient to send request
+        lo_send_request->add_recipient(
+          EXPORTING
+            i_recipient  = lo_recipient
+            i_express    = abap_true ).
+
+        "create body
+        DATA(lv_string) = |Poštovani, status obrade GIS datoteka { cl_abap_char_utilities=>cr_lf }|.
+        APPEND lv_string TO lt_body.
+        CLEAR: lv_string.
+
+        LOOP AT lt_gis_funcloc_subtot ASSIGNING FIELD-SYMBOL(<ls_subtot>).
+          lv_string = |Datoteka: { <ls_subtot>-filename } { cl_abap_char_utilities=>cr_lf }|.
+          APPEND lv_string TO lt_body.
+          CLEAR: lv_string.
+
+          lv_string = |Uspješno obrađeno { <ls_subtot>-ok } objekata { cl_abap_char_utilities=>cr_lf }|.
+          APPEND lv_string TO lt_body.
+          CLEAR: lv_string.
+
+          lv_string = |Neuspješno obrađeno { <ls_subtot>-nok } objekata { cl_abap_char_utilities=>cr_lf }|.
+          APPEND lv_string TO lt_body.
+          CLEAR: lv_string.
+        ENDLOOP.
+
+        lv_string = |Sustav: { sy-sysid }, klijent: { sy-mandt } { cl_abap_char_utilities=>cr_lf }|.
+        APPEND lv_string TO lt_body.
+        CLEAR: lv_string.
+
+        lv_subject = |GIS-SAP sučelje status obrade|.
+        "add body to object
+        DATA(lo_document) = cl_document_bcs=>create_document(
+            i_type          = 'RAW'
+            i_text          = lt_body
+            i_subject       = lv_subject
+            i_language      = '6' ).
+        lo_send_request->set_document( lo_document ).
+        "send and commit
+        DATA(lv_succ_flag) = lo_send_request->send( ).
+
+        IF lv_succ_flag = abap_true.
+          "Commit to send email
+          COMMIT WORK.
+        ENDIF.
+
+      CATCH cx_bcs INTO DATA(lo_bcs_exception).
+        RAISE EXCEPTION TYPE cx_t100_msg
+          EXPORTING
+*           textid     =
+*           previous   =
+            t100_msgid = lo_bcs_exception->msgid
+            t100_msgno = lo_bcs_exception->msgno
+            t100_msgv1 = CONV #( lo_bcs_exception->msgv1 )
+            t100_msgv2 = CONV #( lo_bcs_exception->msgv2 )
+            t100_msgv3 = CONV #( lo_bcs_exception->msgv3 )
+            t100_msgv4 = CONV #( lo_bcs_exception->msgv4 ).
+    ENDTRY.
+
+  ENDMETHOD.
+ENDCLASS.                    "lcl_application IMPLEMENTATION
+
+CLASS lcl_mod_classif IMPLEMENTATION.
+  METHOD bapi_update.
+    DATA: lt_allocvaluesnumnew  TYPE TABLE OF bapi1003_alloc_values_num,
+          lt_allocvaluescurrnew TYPE TABLE OF bapi1003_alloc_values_curr.
+    DATA: lt_return TYPE bapiret2_t.
+
+
+    CALL FUNCTION 'BAPI_OBJCL_CHANGE'
+      EXPORTING
+        objectkey          = iv_objectkey
+        objecttable        = iv_objecttable
+        classnum           = iv_classnum
+        classtype          = iv_classtype
+        keydate            = iv_keydate
+      TABLES
+        allocvaluesnumnew  = lt_allocvaluesnumnew
+        allocvaluescharnew = it_allocvaluescharnew
+        allocvaluescurrnew = lt_allocvaluescurrnew
+        return             = lt_return.
+
+    LOOP AT lt_return ASSIGNING FIELD-SYMBOL(<ls_return>) WHERE type EQ 'A' OR type EQ 'E' OR type EQ 'X'.
+      rollback( ).
+
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = <ls_return>-id
+          t100_msgno = <ls_return>-number
+          t100_msgv1 = CONV #( <ls_return>-message_v1 )
+          t100_msgv2 = CONV #( <ls_return>-message_v2 )
+          t100_msgv3 = CONV #( <ls_return>-message_v3 )
+          t100_msgv4 = CONV #( <ls_return>-message_v4 ).
+    ENDLOOP.
+    IF iv_do_commit EQ abap_true.
+      commit( ).
+    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_mod_funcloc IMPLEMENTATION.
+  METHOD bapi_create.
+    DATA: ls_return TYPE bapiret2.
+
+
+    CALL FUNCTION 'BAPI_FUNCLOC_CREATE'
+      EXPORTING
+        external_number = iv_external_number
+        data_general    = is_data_general
+        data_specific   = is_data_specific
+      IMPORTING
+        functlocation   = ev_functlocation
+        return          = ls_return.
+
+    IF ls_return-type <> 'E' AND ls_return-type <> 'A' AND ls_return-type <> 'X'.
+      rollback( ).
+
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = ls_return-id
+          t100_msgno = ls_return-number
+          t100_msgv1 = CONV #( ls_return-message_v1 )
+          t100_msgv2 = CONV #( ls_return-message_v2 )
+          t100_msgv3 = CONV #( ls_return-message_v3 )
+          t100_msgv4 = CONV #( ls_return-message_v4 ).
+    ELSEIF iv_do_commit EQ abap_true.
+      commit( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD bapi_update.
+    DATA: ls_return TYPE bapiret2.
+
+
+    CALL FUNCTION 'BAPI_FUNCLOC_CHANGE'
+      EXPORTING
+        functlocation  = iv_external_number
+        data_general   = is_data_general
+        data_generalx  = is_data_generalx
+        data_specific  = is_data_specific
+        data_specificx = is_data_specificx
+      IMPORTING
+        return         = ls_return.
+
+    IF ls_return-type <> 'E' AND ls_return-type <> 'A' AND ls_return-type <> 'X'.
+      rollback( ).
+
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = ls_return-id
+          t100_msgno = ls_return-number
+          t100_msgv1 = CONV #( ls_return-message_v1 )
+          t100_msgv2 = CONV #( ls_return-message_v2 )
+          t100_msgv3 = CONV #( ls_return-message_v3 )
+          t100_msgv4 = CONV #( ls_return-message_v4 ).
+    ELSEIF iv_do_commit EQ abap_true.
+      commit( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_objnr.
+
+    "get objnr for funcloc
+    CALL FUNCTION 'RPLM_MT_GET_FLOC_OBJNR'
+      EXPORTING
+        iv_tplnr = iv_tplnr
+      IMPORTING
+        ev_objnr = rv_objnr.
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_mod_gis_map IMPLEMENTATION.
+  METHOD insert_data.
+
+    INSERT ztpm_gis_map FROM is_gis_map.
+    IF sy-subrc = 0.
+      IF iv_do_commit EQ abap_true.
+        commit( ).
+      ENDIF.
+    ELSE.
+      rollback( ).
+
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = 'ZPM'
+          t100_msgno = 003  "Greška kod održavanja tablice ZTPM_GIS_MAP
+*         t100_msgv1 =
+*         t100_msgv2 =
+*         t100_msgv3 =
+*         t100_msgv4 =
+        .
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_table_full.
+
+    IF lines( mt_gis_map ) EQ 0.
+      SELECT *
+        INTO TABLE @mt_gis_map
+        FROM ztpm_gis_map.
+    ENDIF.
+
+    rt_gis_map[] = mt_gis_map[].
+
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_mod IMPLEMENTATION.
+  METHOD commit.
+***      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+***        EXPORTING
+***          wait = 'X'.
+  ENDMETHOD.
+
+  METHOD rollback.
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS lcl_mod_status IMPLEMENTATION.
+  METHOD change_extern.
+    CALL FUNCTION 'STATUS_CHANGE_EXTERN'
+      EXPORTING
+        objnr               = iv_objnr
+        user_status         = iv_user_status
+      EXCEPTIONS
+        object_not_found    = 1
+        status_inconsistent = 2
+        status_not_allowed  = 3
+        OTHERS              = 4.
+    IF sy-subrc = 0.
+      IF iv_do_commit EQ abap_true.
+        commit( ).
+      ENDIF.
+    ELSE.
+      CASE sy-subrc.
+        WHEN 1.
+          DATA(lv_err) = 'Objekt nije pronađen'.
+        WHEN 2.
+          lv_err = 'Status nekonzistentan'.
+        WHEN 3.
+          lv_err = 'Status nedozvoljen'.
+        WHEN OTHERS.
+          lv_err = 'Generalna greška'.
+      ENDCASE.
+
+      rollback( ).
+
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = 'ZPM'
+          t100_msgno = 004.  "Ažuriranje vanjskog statusa: &
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_extern_status_via_text.
+
+    SELECT SINGLE estat
+      FROM tj30t
+      INTO rv_estat
+      WHERE stsma = 'ZPM_FL'
+      AND spras = '6'
+      AND txt30 = iv_txt30.
+
+  ENDMETHOD.
+
+  METHOD change_intern_to_inactive.
+    DATA: lt_status TYPE tt_jstat.
+
+    lt_status = VALUE #(
+      (
+          stat  = 'I0320'
+          inact = ''
+      )
+    ).
+
+    CALL FUNCTION 'STATUS_CHANGE_INTERN'
+      EXPORTING
+        objnr               = iv_objnr
+      TABLES
+        status              = lt_status
+      EXCEPTIONS
+        object_not_found    = 1
+        status_inconsistent = 2
+        status_not_allowed  = 3
+        OTHERS              = 4.
+    IF sy-subrc = 0.
+      IF iv_do_commit EQ abap_true.
+        commit( ).
+      ENDIF.
+    ELSE.
+      CASE sy-subrc.
+        WHEN 1.
+          DATA(lv_err) = 'Objekt nije pronađen'.
+        WHEN 2.
+          lv_err = 'Status nekonzistentan'.
+        WHEN 3.
+          lv_err = 'Status nedozvoljen'.
+        WHEN OTHERS.
+          lv_err = 'Generalna greška'.
+      ENDCASE.
+
+      rollback( ).
+
+      RAISE EXCEPTION TYPE cx_t100_msg
+        EXPORTING
+          t100_msgid = 'ZPM'
+          t100_msgno = 005.  "Ažuriranje internog statusa: &
+    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.
